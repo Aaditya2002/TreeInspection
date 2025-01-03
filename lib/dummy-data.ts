@@ -12,8 +12,8 @@ export const dummyInspections: Inspection[] = [
     },
     scheduledDate: '2024-01-26T20:30:00.000Z',
     inspector: {
-      name: 'Victor Smith',
-      id: 'VS001'
+      name: 'Meet Desai',
+      id: 'MD001'
     },
     communityBoard: '211',
     details: 'LOCATION: IN FRONT OF THE BUILDING. DESCRIPTION: DEAD TREE NEEDS TO BE REMOVED. BRANCHES ARE FALLING AND POSING RISK TO PEDESTRIANS. INSPECTION REQUIRED TO ASSESS THE CONDITION AND DETERMINE THE SCOPE OF WORK.',
@@ -34,8 +34,8 @@ export const dummyInspections: Inspection[] = [
     },
     scheduledDate: '2024-01-27T15:00:00.000Z',
     inspector: {
-      name: 'Victor Smith',
-      id: 'VS001'
+      name: 'Meet Desai',
+      id: 'MD001'
     },
     communityBoard: '211',
     details: 'Regular maintenance inspection for tree pruning assessment.',
@@ -56,8 +56,8 @@ export const dummyInspections: Inspection[] = [
     },
     scheduledDate: '2024-01-28T14:00:00.000Z',
     inspector: {
-      name: 'Victor Smith',
-      id: 'VS001'
+      name: 'Meet Desai',
+      id: 'MD001'
     },
     communityBoard: '211',
     details: 'Site assessment for new tree planting location.',

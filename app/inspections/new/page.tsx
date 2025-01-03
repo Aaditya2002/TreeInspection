@@ -94,8 +94,8 @@ export default function NewInspectionPage() {
         },
         scheduledDate: new Date().toISOString(),
         inspector: {
-          name: 'Victor Smith',
-          id: 'VS001',
+          name: 'Meet Desai',
+          id: 'MD001',
         },
         communityBoard: '211',
         details: `LOCATION: ${address}\nINSPECTION DATE: ${new Date().toLocaleString()}`,
