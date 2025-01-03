@@ -131,6 +131,7 @@ export function NewInspectionDialog({ open, onOpenChange, onSave }: NewInspectio
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         synced: false,
+        images: []
       }
 
       await onSave(inspection, images)
