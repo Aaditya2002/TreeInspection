@@ -16,33 +16,24 @@ export default function LoginPage() {
   const { instance, accounts } = useMsal()
 
   useEffect(() => {
-    const checkAuth = async () => {
-      if (accounts.length > 0) {
-        router.push("/")
-      }
+    if (accounts.length > 0) {
+      router.push("/")
     }
-    checkAuth()
-  }, [router, accounts])
+  }, [accounts, router])
 
   const handleLogin = async () => {
     setLoading(true)
 
     try {
-      const result = await instance.loginPopup(loginRequest)
-      if (result) {
-        console.log("Login successful")
-        localStorage.setItem("isLoggedIn", "true")
-        router.push("/")
-      }
+      await instance.loginRedirect(loginRequest)
+      // The page will reload after redirect, so we don't need to do anything else here
     } catch (error) {
       console.error("Login error:", error)
-      localStorage.removeItem("isLoggedIn")
       toast({
         title: "Login Failed",
         description: "An error occurred during login. Please try again.",
         variant: "destructive",
       })
-    } finally {
       setLoading(false)
     }
   }

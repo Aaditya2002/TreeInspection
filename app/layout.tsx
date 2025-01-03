@@ -35,9 +35,13 @@ function AppContent({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const handleRedirect = async () => {
       try {
-        await instance.handleRedirectPromise()
-        if (accounts.length > 0 && pathname === '/login') {
-          router.push('/')
+        const result = await instance.handleRedirectPromise()
+        if (result) {
+          // User has logged in successfully
+          console.log("Login successful")
+          if (pathname === '/login') {
+            router.push('/')
+          }
         }
       } catch (error) {
         console.error("Error handling redirect:", error)
@@ -45,7 +49,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
     }
 
     handleRedirect()
-  }, [instance, accounts, pathname, router])
+  }, [instance, pathname, router])
 
   const isLoginPage = pathname === '/login'
 

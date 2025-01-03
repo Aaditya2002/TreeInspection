@@ -1,4 +1,4 @@
-import { Configuration, PopupRequest } from "@azure/msal-browser"
+import { Configuration, RedirectRequest } from "@azure/msal-browser"
 
 export const msalConfig: Configuration = {
   auth: {
@@ -7,12 +7,12 @@ export const msalConfig: Configuration = {
     redirectUri: "https://treeinspection.vercel.app/",
   },
   cache: {
-    cacheLocation: "sessionStorage",
-    storeAuthStateInCookie: false
+    cacheLocation: "localStorage", // This setting is more suitable for SPAs
+    storeAuthStateInCookie: false // Set this to true if you have issues with IE11 or Edge
   }
 }
 
-export const loginRequest: PopupRequest = {
+export const loginRequest: RedirectRequest = {
   scopes: ["openid", "profile", "User.Read"]
 }
 
