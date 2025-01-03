@@ -17,11 +17,13 @@ export default function LoginPage() {
   const { instance, accounts } = useMsal()
 
   useEffect(() => {
-    // Check if user is already logged in
-    const isLoggedIn = localStorage.getItem("isLoggedIn") === "true"
-    if (isLoggedIn && accounts.length > 0) {
-      router.push("/")
+    const checkAuth = async () => {
+      const isLoggedIn = localStorage.getItem("isLoggedIn") === "true"
+      if (isLoggedIn && accounts.length > 0) {
+        router.push("/")
+      }
     }
+    checkAuth()
   }, [router, accounts])
 
   const handleLogin = async () => {
