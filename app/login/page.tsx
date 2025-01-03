@@ -17,8 +17,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     const checkAuth = async () => {
-      const isLoggedIn = localStorage.getItem("isLoggedIn") === "true"
-      if (isLoggedIn && accounts.length > 0) {
+      if (accounts.length > 0) {
         router.push("/")
       }
     }
@@ -29,8 +28,12 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      await instance.loginRedirect(loginRequest)
-      // The page will be redirected, so we don't need to do anything else here
+      const result = await instance.loginPopup(loginRequest)
+      if (result) {
+        console.log("Login successful")
+        localStorage.setItem("isLoggedIn", "true")
+        router.push("/")
+      }
     } catch (error) {
       console.error("Login error:", error)
       localStorage.removeItem("isLoggedIn")
@@ -39,6 +42,7 @@ export default function LoginPage() {
         description: "An error occurred during login. Please try again.",
         variant: "destructive",
       })
+    } finally {
       setLoading(false)
     }
   }

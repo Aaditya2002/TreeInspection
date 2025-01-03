@@ -9,21 +9,21 @@ import { InstallPrompt } from '../components/pwa/install-prompt'
 import { Providers } from './providers'
 import { ServiceWorkerRegister } from './service-worker-register'
 import { useState, useEffect } from 'react'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { MsalProvider, useMsal } from "@azure/msal-react"
 import { PublicClientApplication } from "@azure/msal-browser"
 import { msalConfig } from "../lib/msal-config"
 
 const inter = Inter({ subsets: ['latin'] })
 
-// Initialize MSAL instance
 const pca = new PublicClientApplication(msalConfig)
 
 function AppContent({ children }: { children: React.ReactNode }) {
   const [isNavbarOpen, setIsNavbarOpen] = useState(true)
   const [isMobile, setIsMobile] = useState(false)
   const pathname = usePathname()
-  const { instance } = useMsal()
+  const { instance, accounts } = useMsal()
+  const router = useRouter()
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768)
@@ -35,11 +35,9 @@ function AppContent({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const handleRedirect = async () => {
       try {
-        const result = await instance.handleRedirectPromise()
-        if (result) {
-          // User has logged in successfully
-          localStorage.setItem("isLoggedIn", "true")
-          // You can perform additional actions here if needed
+        await instance.handleRedirectPromise()
+        if (accounts.length > 0 && pathname === '/login') {
+          router.push('/')
         }
       } catch (error) {
         console.error("Error handling redirect:", error)
@@ -47,7 +45,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
     }
 
     handleRedirect()
-  }, [instance])
+  }, [instance, accounts, pathname, router])
 
   const isLoginPage = pathname === '/login'
 
@@ -105,3 +103,4 @@ export default function RootLayout({
     </html>
   )
 }
+

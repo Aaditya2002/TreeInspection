@@ -11,17 +11,32 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const checkAuth = async () => {
-      const isLoggedIn = localStorage.getItem("isLoggedIn") === "true"
-      if (isLoggedIn && accounts.length > 0) {
+      if (accounts.length > 0) {
         setIsAuthenticated(true)
       } else {
-        localStorage.removeItem("isLoggedIn")
-        router.push('/login')
+        const isLoggedIn = localStorage.getItem("isLoggedIn") === "true"
+        if (!isLoggedIn) {
+          router.push('/login')
+        } else {
+          try {
+            const result = await instance.ssoSilent({
+              scopes: ["openid", "profile", "User.Read"],
+              loginHint: localStorage.getItem("loginHint")
+            })
+            if (result) {
+              setIsAuthenticated(true)
+            }
+          } catch (error) {
+            console.error("SSO error:", error)
+            localStorage.removeItem("isLoggedIn")
+            router.push('/login')
+          }
+        }
       }
     }
 
     checkAuth()
-  }, [router, accounts])
+  }, [router, accounts, instance])
 
   if (!isAuthenticated) {
     return null // Don't render anything until authentication is confirmed
