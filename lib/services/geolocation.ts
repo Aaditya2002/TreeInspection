@@ -20,6 +20,7 @@ export async function getCurrentLocation(): Promise<{ latitude: number; longitud
 }
 
 export async function getAddressFromCoordinates(latitude: number, longitude: number): Promise<string> {
+  const accessToken = "pk.eyJ1IjoiYWRpdHlhMTcwMzIwMDIiLCJhIjoiY201NTk0eGE1MmhsYzJtcHpwZHkxYzI1YSJ9.-crvgtTpoASRfBDF9PvHGA"; // Hardcoded API key
   try {
     // Try to get from cache first
     const cacheKey = `address_${latitude}_${longitude}`
@@ -33,7 +34,7 @@ export async function getAddressFromCoordinates(latitude: number, longitude: num
     }
 
     const response = await fetch(
-      `https://api.mapbox.com/geocoding/v5/mapbox.places/${longitude},${latitude}.json?access_token=${process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN}&types=place,locality,region,country`
+      `https://api.mapbox.com/geocoding/v5/mapbox.places/${longitude},${latitude}.json?access_token=${accessToken}&types=place,locality,region,country`
     )
 
     if (!response.ok) {
