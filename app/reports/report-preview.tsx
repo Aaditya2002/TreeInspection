@@ -2,11 +2,18 @@
 
 import { Dialog, DialogContent } from "../../components/ui/dialog"
 import { Button } from "../../components/ui/button"
-import { X, Download, MapPin, Calendar, User, Building2 } from 'lucide-react'
-import { Badge } from "../../components/ui/badge"
+import { X, Download } from 'lucide-react'
 import type { Inspection } from "../../lib/types"
-import { ImageViewer } from "../../components/ui/image-viewer"
-import { useState } from "react"
+import { useEffect, useRef } from "react"
+import jsPDF from 'jspdf'
+import 'jspdf-autotable'
+
+// Extend jsPDF type to include autoTable
+interface ExtendedJsPDF extends jsPDF {
+  lastAutoTable?: {
+    finalY: number;
+  };
+}
 
 interface ReportPreviewProps {
   inspection: Inspection
@@ -16,141 +23,154 @@ interface ReportPreviewProps {
 }
 
 export function ReportPreview({ inspection, open, onOpenChange, onDownload }: ReportPreviewProps) {
-  const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null)
+  const canvasRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open || !canvasRef.current) return
+
+    const doc = new jsPDF() as ExtendedJsPDF
+    
+    // Title
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(20)
+    doc.text('Tree Inspection Report', 105, 15, { align: 'center' })
+
+    // Header Info
+    doc.setFontSize(12)
+    doc.setTextColor(100)
+    doc.text(`Report generated on: ${new Date().toLocaleString()}`, 20, 25)
+    doc.text(`Report ID: ${inspection.id}`, 20, 30)
+
+    // Status Badge
+    doc.setFillColor(102, 45, 145) // Purple color
+    doc.setDrawColor(102, 45, 145)
+    doc.setTextColor(255)
+    doc.roundedRect(20, 35, 40, 10, 5, 5, 'FD')
+    doc.text(inspection.status, 25, 42)
+
+    // Reset text color
+    doc.setTextColor(0)
+    
+    // Main Content
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(16)
+    doc.text('Inspection Details', 20, 60)
+
+    // Details Grid
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(12)
+    const details = [
+      ['Title', inspection.title],
+      ['Date', new Date(inspection.scheduledDate).toLocaleString()],
+      ['Location', inspection.location.address],
+      ['Coordinates', `${inspection.location.latitude.toFixed(6)}, ${inspection.location.longitude.toFixed(6)}`],
+      ['Inspector', `${inspection.inspector.name} (ID: ${inspection.inspector.id})`],
+      ['Community Board', inspection.communityBoard],
+    ]
+
+    let yPos = 70
+    details.forEach(([label, value]) => {
+      doc.setFont('helvetica', 'bold')
+      doc.text(`${label}:`, 20, yPos)
+      doc.setFont('helvetica', 'normal')
+      doc.text(value.toString(), 70, yPos)
+      yPos += 10
+    })
+
+    // Description
+    doc.setFont('helvetica', 'bold')
+    doc.text('Details:', 20, yPos + 10)
+    doc.setFont('helvetica', 'normal')
+    const splitDetails = doc.splitTextToSize(inspection.details, 170)
+    doc.text(splitDetails, 20, yPos + 20)
+
+    // Images Section
+    if (inspection.images && inspection.images.length > 0) {
+      const imageStartY = doc.lastAutoTable?.finalY || yPos + splitDetails.length * 10 + 30
+      doc.setFont('helvetica', 'bold')
+      doc.text('Inspection Images', 20, imageStartY)
+      
+      // Add image thumbnails
+      let xPos = 20
+      let currentY = imageStartY + 10
+      inspection.images.forEach((img, index) => {
+        try {
+          doc.addImage(
+            `data:image/jpeg;base64,${img}`,
+            'JPEG',
+            xPos,
+            currentY,
+            40,
+            40,
+            `img${index}`,
+            'MEDIUM'
+          )
+          xPos += 50
+          if (xPos > 150) {
+            xPos = 20
+            currentY += 50
+          }
+        } catch (error) {
+          console.error('Error adding image to PDF:', error)
+        }
+      })
+    }
+
+    // Footer
+    const pageCount = doc.getNumberOfPages()
+    doc.setFont('helvetica', 'italic')
+    doc.setFontSize(8)
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i)
+      doc.text(
+        `Page ${i} of ${pageCount}`,
+        doc.internal.pageSize.width - 30,
+        doc.internal.pageSize.height - 10
+      )
+    }
+
+    // Display PDF preview
+    const pdfData = doc.output('datauristring')
+    canvasRef.current.innerHTML = `
+      <iframe
+        src="${pdfData}"
+        width="100%"
+        height="100%"
+        style="border: none;"
+        title="PDF Preview"
+      ></iframe>
+    `
+  }, [open, inspection])
 
   return (
-    <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-2xl p-0">
-          <div className="sticky top-0 bg-white border-b p-4 flex justify-between items-center">
-            <h2 className="text-xl font-bold">Inspection Details</h2>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={onDownload}
-              >
-                <Download className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => onOpenChange(false)}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-4xl p-0">
+        <div className="sticky top-0 bg-white border-b p-4 flex justify-between items-center">
+          <h2 className="text-xl font-bold">Report Preview</h2>
+          <div className="flex gap-2">
+            <Button
+              onClick={onDownload}
+              className="bg-purple-600 hover:bg-purple-700"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Download PDF
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => onOpenChange(false)}
+            >
+              <X className="h-4 w-4" />
+            </Button>
           </div>
+        </div>
 
-          <div className="p-6 space-y-6 max-h-[80vh] overflow-y-auto">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-purple-600">#{inspection.id}</span>
-                  <Badge variant={
-                    inspection.status === 'Pending' ? 'secondary' :
-                    inspection.status === 'In-Progress' ? 'default' : 'destructive'
-                  }>
-                    {inspection.status}
-                  </Badge>
-                </div>
-                <h3 className="text-xl font-semibold mt-1">{inspection.title}</h3>
-              </div>
-              <time className="text-sm text-gray-500">
-                {new Date(inspection.scheduledDate).toLocaleDateString()}
-              </time>
-            </div>
-
-            <div className="grid gap-6">
-              <InfoItem
-                icon={MapPin}
-                label="Location"
-                value={inspection.location.address}
-                subValue={`${inspection.location.latitude.toFixed(6)}, ${inspection.location.longitude.toFixed(6)}`}
-              />
-
-              <InfoItem
-                icon={Calendar}
-                label="Scheduled Date"
-                value={new Date(inspection.scheduledDate).toLocaleString()}
-              />
-
-              <InfoItem
-                icon={User}
-                label="Inspector"
-                value={`${inspection.inspector.name} (ID: ${inspection.inspector.id})`}
-              />
-
-              <InfoItem
-                icon={Building2}
-                label="Community Board"
-                value={inspection.communityBoard}
-              />
-
-              <div>
-                <h4 className="font-medium mb-2">Details</h4>
-                <p className="text-gray-600 whitespace-pre-line">{inspection.details}</p>
-              </div>
-
-              {inspection.images && inspection.images.length > 0 && (
-                <div>
-                  <h4 className="font-medium mb-2">Images</h4>
-                  <div className="grid grid-cols-2 gap-4">
-                    {inspection.images.map((img, index) => (
-                      <div 
-                        key={index}
-                        className="relative aspect-video cursor-pointer rounded-lg overflow-hidden"
-                        onClick={() => setSelectedImageIndex(index)}
-                      >
-                        <img
-                          src={`data:image/jpeg;base64,${img}`}
-                          alt={`Inspection image ${index + 1}`}
-                          className="w-full h-full object-cover hover:opacity-90 transition-opacity"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <ImageViewer
-        images={inspection.images || []}
-        initialIndex={selectedImageIndex || 0}
-        open={selectedImageIndex !== null}
-        onOpenChange={(open) => !open && setSelectedImageIndex(null)}
-      />
-    </>
-  )
-}
-
-function InfoItem({ 
-  icon: Icon, 
-  label, 
-  value, 
-  subValue 
-}: { 
-  icon: React.ElementType
-  label: string
-  value: string
-  subValue?: string
-}) {
-  return (
-    <div className="flex gap-3">
-      <div className="mt-1">
-        <Icon className="h-5 w-5 text-purple-600" />
-      </div>
-      <div>
-        <h4 className="font-medium">{label}</h4>
-        <p className="text-gray-600">{value}</p>
-        {subValue && (
-          <p className="text-sm text-gray-500">{subValue}</p>
-        )}
-      </div>
-    </div>
+        <div 
+          ref={canvasRef} 
+          className="h-[80vh] bg-gray-50"
+        />
+      </DialogContent>
+    </Dialog>
   )
 }
 
