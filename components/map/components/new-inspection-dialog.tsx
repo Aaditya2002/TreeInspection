@@ -10,6 +10,7 @@ import { Camera, Loader2, X } from 'lucide-react'
 import { useNotificationStore } from '../../../lib/stores/notification-store'
 import { getCurrentLocation, getAddressFromCoordinates } from '../../../lib/services/geolocation'
 import { Inspection } from '../../../lib/types'
+import { ImageViewer } from '../../../components/ui/image-viewer'
 
 interface NewInspectionDialogProps {
   open: boolean;
@@ -27,6 +28,7 @@ export function NewInspectionDialog({ open, onOpenChange, onSave }: NewInspectio
   const [images, setImages] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [isCameraActive, setIsCameraActive] = useState(false)
+  const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
 
@@ -200,103 +202,117 @@ export function NewInspectionDialog({ open, onOpenChange, onSave }: NewInspectio
   }
 
   return (
-    <Dialog open={open} onOpenChange={(newOpen) => {
-      if (!newOpen) {
-        stopCamera()
-      }
-      onOpenChange(newOpen)
-    }}>
-      <DialogContent className="sm:max-w-[425px] bg-white max-h-[80vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>New Inspection</DialogTitle>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4 pb-4">
-          <div>
-            <Label htmlFor="title">Title</Label>
-            <Input
-              id="title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Enter inspection title"
-            />
-          </div>
-          <div>
-            <Label htmlFor="details">Details</Label>
-            <Textarea
-              id="details"
-              value={details}
-              onChange={(e) => setDetails(e.target.value)}
-              placeholder="Enter inspection details"
-            />
-          </div>
-          <div>
-            <Label>Camera</Label>
-            <div className="space-y-4">
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                className="w-full aspect-video bg-black rounded-lg"
+    <>
+      <Dialog open={open} onOpenChange={(newOpen) => {
+        if (!newOpen) {
+          stopCamera()
+        }
+        onOpenChange(newOpen)
+      }}>
+        <DialogContent className="sm:max-w-[425px] bg-white max-h-[80vh] overflow-y-auto !p-0">
+          <DialogHeader className="p-4 pb-2">
+            <DialogTitle>New Inspection</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-4 p-4 pt-2">
+            <div>
+              <Label htmlFor="title">Title</Label>
+              <Input
+                id="title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Enter inspection title"
               />
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="flex-1"
-                  onClick={toggleCamera}
-                >
-                  {isCameraActive ? "Stop Camera" : "Start Camera"}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="flex-1"
-                  onClick={captureImage}
-                  disabled={!isCameraActive}
-                >
-                  Capture
-                </Button>
-              </div>
             </div>
-          </div>
-          <div>
-            <Label>Captured Images</Label>
-            <div className="grid grid-cols-2 gap-2 mt-2 max-h-[200px] overflow-y-auto">
-              {images.map((image, index) => (
-                <div key={index} className="relative aspect-square">
-                  <img
-                    src={`data:image/jpeg;base64,${image}`}
-                    alt={`Captured image ${index + 1}`}
-                    className="w-full h-full object-cover rounded-lg"
-                  />
+            <div>
+              <Label htmlFor="details">Details</Label>
+              <Textarea
+                id="details"
+                value={details}
+                onChange={(e) => setDetails(e.target.value)}
+                placeholder="Enter inspection details"
+              />
+            </div>
+            <div>
+              <Label>Camera</Label>
+              <div className="space-y-4">
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  className="w-full aspect-video bg-black rounded-lg"
+                />
+                <div className="flex gap-2">
                   <Button
                     type="button"
-                    variant="destructive"
-                    size="sm"
-                    className="absolute top-2 right-2"
-                    onClick={() => {
-                      setImages(prev => prev.filter((_, i) => i !== index))
-                    }}
+                    variant="outline"
+                    className="flex-1"
+                    onClick={toggleCamera}
                   >
-                    <X className="h-4 w-4" />
+                    {isCameraActive ? "Stop Camera" : "Start Camera"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1"
+                    onClick={captureImage}
+                    disabled={!isCameraActive}
+                  >
+                    Capture
                   </Button>
                 </div>
-              ))}
+              </div>
             </div>
-          </div>
-          <Button className="w-full" type="submit" disabled={loading}>
-            {loading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Creating...
-              </>
-            ) : (
-              'Create Inspection'
-            )}
-          </Button>
-        </form>
-      </DialogContent>
-    </Dialog>
+            <div>
+              <Label>Captured Images</Label>
+              <div className="grid grid-cols-2 gap-2 mt-2">
+                {images.map((image, index) => (
+                  <div 
+                    key={index} 
+                    className="relative aspect-square cursor-pointer"
+                    onClick={() => setSelectedImageIndex(index)}
+                  >
+                    <img
+                      src={`data:image/jpeg;base64,${image}`}
+                      alt={`Captured image ${index + 1}`}
+                      className="w-full h-full object-cover rounded-lg"
+                    />
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      className="absolute top-2 right-2"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setImages(prev => prev.filter((_, i) => i !== index))
+                      }}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <Button className="w-full" type="submit" disabled={loading}>
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                'Create Inspection'
+              )}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <ImageViewer
+        images={images}
+        initialIndex={selectedImageIndex || 0}
+        open={selectedImageIndex !== null}
+        onOpenChange={(open) => !open && setSelectedImageIndex(null)}
+      />
+    </>
   )
 }
 

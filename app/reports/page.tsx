@@ -13,14 +13,17 @@ import {
 } from "../../components/ui/select"
 import { getAllInspections } from '../../lib/db'
 import { Inspection } from '../../lib/types'
-import React from 'react'
 import { Badge } from '../../components/ui/badge'
 import { generatePDF } from './components/pdfGenerator'
+import { ReportPreview } from './report-preview'
+import { useLongPress } from '../../lib/hooks/use-long-press'
 
 export default function ReportsPage() {
   const [inspections, setInspections] = useState<Inspection[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<string>('all')
+  const [selectedInspection, setSelectedInspection] = useState<Inspection | null>(null)
+  const [pressedCardId, setPressedCardId] = useState<string | null>(null)
 
   useEffect(() => {
     loadInspections()
@@ -61,7 +64,6 @@ export default function ReportsPage() {
       })),
     }
 
-    // Create downloadable file
     const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -73,112 +75,139 @@ export default function ReportsPage() {
     URL.revokeObjectURL(url)
   }
 
-  const handleGeneratePDF = () => {
-    generatePDF(filteredInspections, filter)
+  const handleGeneratePDF = (inspection?: Inspection) => {
+    if (inspection) {
+      generatePDF([inspection], 'single')
+    } else {
+      generatePDF(filteredInspections, filter)
+    }
   }
 
-  return (
-    <main className="pb-16 md:pb-0">
-      <header className="border-b p-4 bg-white sticky top-0 z-10">
-        <div className="flex items-center gap-2">
-          <FileText className="h-5 w-5 text-purple-600" />
-          <h1 className="text-xl font-bold">Reports</h1>
-        </div>
-      </header>
+  const bind = useLongPress<Inspection>((inspection) => {
+    setSelectedInspection(inspection)
+  }, {
+    threshold: 500,
+    onStart: (inspection) => setPressedCardId(inspection.id),
+    onEnd: () => setPressedCardId(null),
+  })
 
-      <div className="p-4 space-y-4">
-        <Card className="p-4">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4" />
-              <span className="font-medium">Filter by Status</span>
-            </div>
-            <Select value={filter} onValueChange={setFilter}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Select status" />
-              </SelectTrigger>
-              <SelectContent className='customUpdateStatus'>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="in-progress">In Progress</SelectItem>
-                <SelectItem value="completed">Completed</SelectItem>
-              </SelectContent>
-            </Select>
+  return (
+    <>
+      <main className="pb-16 md:pb-0">
+        <header className="border-b p-4 bg-white sticky top-0 z-10">
+          <div className="flex items-center gap-2">
+            <FileText className="h-5 w-5 text-purple-600" />
+            <h1 className="text-xl font-bold">Reports</h1>
           </div>
+        </header>
+
+        <div className="p-4 space-y-4">
+          <Card className="p-4">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Filter className="h-4 w-4" />
+                <span className="font-medium">Filter by Status</span>
+              </div>
+              <Select value={filter} onValueChange={setFilter}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="in-progress">In Progress</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-3 gap-4">
+                <StatCard
+                  title="Total Inspections"
+                  value={filteredInspections.length}
+                />
+                <StatCard
+                  title="Pending"
+                  value={filteredInspections.filter(i => i.status === 'Pending').length}
+                />
+                <StatCard
+                  title="Completed"
+                  value={filteredInspections.filter(i => i.status === 'Completed').length}
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <Button 
+                  className="flex-1" 
+                  onClick={generateReport}
+                  disabled={filteredInspections.length === 0}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Download JSON
+                </Button>
+                
+                <Button 
+                  className="flex-1" 
+                  onClick={() => handleGeneratePDF()}
+                  disabled={filteredInspections.length === 0}
+                >
+                  <FileDown className="h-4 w-4 mr-2" />
+                  Download PDF
+                </Button>
+              </div>
+            </div>
+          </Card>
 
           <div className="space-y-4">
-            <div className="grid grid-cols-3 gap-4">
-              <StatCard
-                title="Total Inspections"
-                value={filteredInspections.length}
-              />
-              <StatCard
-                title="Pending"
-                value={filteredInspections.filter(i => i.status === 'Pending').length}
-              />
-              <StatCard
-                title="Completed"
-                value={filteredInspections.filter(i => i.status === 'Completed').length}
-              />
-            </div>
-
-            <div className="flex gap-2">
-              <Button 
-                className="flex-1" 
-                onClick={generateReport}
-                disabled={filteredInspections.length === 0}
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Download JSON
-              </Button>
-              
-              <Button 
-                className="flex-1" 
-                onClick={handleGeneratePDF}
-                disabled={filteredInspections.length === 0}
-              >
-                <FileDown className="h-4 w-4 mr-2" />
-                Download PDF
-              </Button>
-            </div>
-          </div>
-        </Card>
-
-        <div className="space-y-4">
-          {loading ? (
-            <Card className="p-4 animate-pulse">
-              <div className="h-4 bg-gray-200 rounded w-1/4 mb-2" />
-              <div className="h-4 bg-gray-200 rounded w-3/4" />
-            </Card>
-          ) : (
-            filteredInspections.map(inspection => (
-              <Card key={inspection.id} className="p-4">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-purple-600">#{inspection.id}</span>
-                      <Badge variant={
-                        inspection.status === 'Pending' ? 'secondary' :
-                        inspection.status === 'In-Progress' ? 'default' : 'destructive'
-                      }>
-                        {inspection.status}
-                      </Badge>
-                    </div>
-                    <h3 className="font-medium">{inspection.title}</h3>
-                    <p className="text-sm text-gray-500 mt-1">
-                      {inspection.location.address}
-                    </p>
-                  </div>
-                  <time className="text-sm text-gray-500">
-                    {new Date(inspection.scheduledDate).toLocaleDateString()}
-                  </time>
-                </div>
+            {loading ? (
+              <Card className="p-4 animate-pulse">
+                <div className="h-4 bg-gray-200 rounded w-1/4 mb-2" />
+                <div className="h-4 bg-gray-200 rounded w-3/4" />
               </Card>
-            ))
-          )}
+            ) : (
+              filteredInspections.map(inspection => (
+                <Card 
+                  key={inspection.id} 
+                  className={`p-4 transition-colors ${pressedCardId === inspection.id ? 'bg-gray-50' : ''}`}
+                  {...bind(inspection)}
+                >
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-purple-600">#{inspection.id}</span>
+                        <Badge variant={
+                          inspection.status === 'Pending' ? 'secondary' :
+                          inspection.status === 'In-Progress' ? 'default' : 'destructive'
+                        }>
+                          {inspection.status}
+                        </Badge>
+                      </div>
+                      <h3 className="font-medium">{inspection.title}</h3>
+                      <p className="text-sm text-gray-500 mt-1">
+                        {inspection.location.address}
+                      </p>
+                    </div>
+                    <time className="text-sm text-gray-500">
+                      {new Date(inspection.scheduledDate).toLocaleDateString()}
+                    </time>
+                  </div>
+                </Card>
+              ))
+            )}
+          </div>
         </div>
-      </div>
-    </main>
+      </main>
+
+      {selectedInspection && (
+        <ReportPreview
+          inspection={selectedInspection}
+          open={!!selectedInspection}
+          onOpenChange={(open) => !open && setSelectedInspection(null)}
+          onDownload={() => handleGeneratePDF(selectedInspection)}
+        />
+      )}
+    </>
   )
 }
 
