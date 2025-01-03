@@ -33,6 +33,8 @@ export default function LoginPage() {
       const response = await instance.loginPopup(loginRequest)
       if (response?.account) {
         localStorage.setItem("isLoggedIn", "true")
+        // Force a re-render to update the MSAL context
+        await instance.setActiveAccount(response.account)
         router.push("/")
       }
     } catch (error) {
@@ -46,11 +48,6 @@ export default function LoginPage() {
     } finally {
       setLoading(false)
     }
-  }
-
-  const handleSkipLogin = () => {
-    localStorage.setItem("isLoggedIn", "true")
-    router.push("/")
   }
 
   return (
@@ -69,19 +66,13 @@ export default function LoginPage() {
             Sign in with your Microsoft account
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent>
           <Button 
-            className="w-full bg-purple-600 hover:bg-purple-700" 
+            className="w-full mt-6 bg-purple-600 hover:bg-purple-700" 
             onClick={handleLogin} 
             disabled={loading}
           >
             {loading ? "Signing in..." : "Sign in with Microsoft"}
-          </Button>
-          <Button 
-            className="w-full bg-gray-500 hover:bg-gray-600" 
-            onClick={handleSkipLogin}
-          >
-            Skip Login (Temporary)
           </Button>
         </CardContent>
         <CardFooter>
