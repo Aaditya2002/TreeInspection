@@ -12,7 +12,9 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const checkAuth = async () => {
       const isLoggedIn = localStorage.getItem("isLoggedIn") === "true"
-      if (!isLoggedIn || accounts.length === 0) {
+      if (isLoggedIn) {
+        setIsAuthenticated(true)
+      } else if (accounts.length === 0) {
         router.push('/login')
       } else {
         setIsAuthenticated(true)

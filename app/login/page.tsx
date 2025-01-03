@@ -48,6 +48,11 @@ export default function LoginPage() {
     }
   }
 
+  const handleSkipLogin = () => {
+    localStorage.setItem("isLoggedIn", "true")
+    router.push("/")
+  }
+
   return (
     <div className="min-h-screen w-full flex flex-col items-center justify-center bg-gradient-to-b from-purple-100 to-white">
       <Card className="w-full max-w-md mx-4">
@@ -64,13 +69,19 @@ export default function LoginPage() {
             Sign in with your Microsoft account
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           <Button 
-            className="w-full mt-6 bg-purple-600 hover:bg-purple-700" 
+            className="w-full bg-purple-600 hover:bg-purple-700" 
             onClick={handleLogin} 
             disabled={loading}
           >
             {loading ? "Signing in..." : "Sign in with Microsoft"}
+          </Button>
+          <Button 
+            className="w-full bg-gray-500 hover:bg-gray-600" 
+            onClick={handleSkipLogin}
+          >
+            Skip Login (Temporary)
           </Button>
         </CardContent>
         <CardFooter>
@@ -82,4 +93,3 @@ export default function LoginPage() {
     </div>
   )
 }
-
