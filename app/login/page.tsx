@@ -3,12 +3,11 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "../../components/ui/button"
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "../../components/ui/card"
+import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from "../../components/ui/card"
 import { useToast } from "../../components/ui/use-toast"
 import { useMsal } from "@azure/msal-react"
 import { loginRequest } from "../../lib/msal-config"
 import { Scale } from 'lucide-react'
-import { CardDescription } from "../../components/ui/card"
 
 export default function LoginPage() {
   const [loading, setLoading] = useState(false)
@@ -30,13 +29,8 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      const response = await instance.loginPopup(loginRequest)
-      if (response?.account) {
-        localStorage.setItem("isLoggedIn", "true")
-        await instance.setActiveAccount(response.account)
-        console.log("Login successful, redirecting to home page")
-        router.push("/")
-      }
+      await instance.loginRedirect(loginRequest)
+      // The page will be redirected, so we don't need to do anything else here
     } catch (error) {
       console.error("Login error:", error)
       localStorage.removeItem("isLoggedIn")
@@ -45,7 +39,6 @@ export default function LoginPage() {
         description: "An error occurred during login. Please try again.",
         variant: "destructive",
       })
-    } finally {
       setLoading(false)
     }
   }
@@ -84,3 +77,4 @@ export default function LoginPage() {
     </div>
   )
 }
+
