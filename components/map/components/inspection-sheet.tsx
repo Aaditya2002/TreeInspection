@@ -1,11 +1,12 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "../../../components/ui/sheet"
 import { Button } from "../../../components/ui/button"
 import { MapPin, Calendar, User, Building2, FileText, ArrowLeft } from 'lucide-react'
 import type { Inspection } from "../../../lib/types"
 import { cn } from "../../../lib/utils"
-import Image from 'next/image'
+import { getAddressFromCoordinates, syncPendingAddresses } from '../../../lib/services/geolocation'
 
 interface InspectionSheetProps {
   inspection: Inspection | null;
@@ -13,7 +14,51 @@ interface InspectionSheetProps {
 }
 
 export function InspectionSheet({ inspection, onClose }: InspectionSheetProps) {
-  if (!inspection) return null;
+  const [currentAddress, setCurrentAddress] = useState<string>('')
+
+  useEffect(() => {
+    if (inspection) {
+      setCurrentAddress(inspection.location.address)
+      updateAddress(inspection.location.latitude, inspection.location.longitude)
+    }
+  }, [inspection])
+
+  useEffect(() => {
+    const handleAddressUpdate = (event: CustomEvent) => {
+      if (!inspection) return
+      
+      const { latitude, longitude, address } = event.detail
+      if (
+        latitude === inspection.location.latitude &&
+        longitude === inspection.location.longitude
+      ) {
+        setCurrentAddress(address)
+      }
+    }
+
+    window.addEventListener('addressUpdated', handleAddressUpdate as EventListener)
+    return () => {
+      window.removeEventListener('addressUpdated', handleAddressUpdate as EventListener)
+    }
+  }, [inspection])
+
+  useEffect(() => {
+    window.addEventListener('online', syncPendingAddresses)
+    return () => {
+      window.removeEventListener('online', syncPendingAddresses)
+    }
+  }, [])
+
+  const updateAddress = async (latitude: number, longitude: number) => {
+    try {
+      const address = await getAddressFromCoordinates(latitude, longitude)
+      setCurrentAddress(address)
+    } catch (error) {
+      console.error('Error updating address:', error)
+    }
+  }
+
+  if (!inspection) return null
 
   return (
     <Sheet open={!!inspection} onOpenChange={onClose}>
@@ -50,7 +95,7 @@ export function InspectionSheet({ inspection, onClose }: InspectionSheetProps) {
                   label="Location" 
                   value={
                     <>
-                      {inspection.location.address}
+                      {currentAddress}
                       <div className="text-sm text-gray-500">
                         Lat: {inspection.location.latitude.toFixed(6)}, Long: {inspection.location.longitude.toFixed(6)}
                       </div>

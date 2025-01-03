@@ -29,3 +29,29 @@ export interface User {
   avatar?: string
 }
 
+export interface GeolocationResponse {
+  latitude: number;
+  longitude: number;
+}
+
+export interface AddressUpdate {
+  latitude: number;
+  longitude: number;
+  timestamp: number;
+  address?: string;
+  status: 'pending' | 'synced' | 'failed';
+}
+
+export interface LocationCache {
+  address: string;
+  timestamp: number;
+  expiresAt: number;
+}
+
+export interface SyncStatus {
+  lastSync: number;
+  pending: number;
+  failed: number;
+}
+
+  

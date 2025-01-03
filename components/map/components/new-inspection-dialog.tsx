@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../../../components/ui/dialog"
 import { Button } from '../../../components/ui/button'
 import { Input } from '../../../components/ui/input'
@@ -26,8 +26,17 @@ export function NewInspectionDialog({ open, onOpenChange, onSave }: NewInspectio
   const [details, setDetails] = useState('')
   const [images, setImages] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
+  const [isCameraActive, setIsCameraActive] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
+
+  const toggleCamera = async () => {
+    if (isCameraActive) {
+      stopCamera()
+    } else {
+      await startCamera()
+    }
+  }
 
   const startCamera = async () => {
     try {
@@ -38,6 +47,7 @@ export function NewInspectionDialog({ open, onOpenChange, onSave }: NewInspectio
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         streamRef.current = stream;
+        setIsCameraActive(true)
       }
     } catch (error) {
       console.error('Camera error:', error);
@@ -48,6 +58,14 @@ export function NewInspectionDialog({ open, onOpenChange, onSave }: NewInspectio
       });
     }
   };
+
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop())
+      streamRef.current = null
+      setIsCameraActive(false)
+    }
+  }
 
   const captureImage = () => {
     if (!videoRef.current) return
@@ -70,12 +88,11 @@ export function NewInspectionDialog({ open, onOpenChange, onSave }: NewInspectio
     }, 'image/jpeg', 0.8)
   }
 
-  const stopCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop())
-      streamRef.current = null
+  useEffect(() => {
+    return () => {
+      stopCamera()
     }
-  }
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -183,7 +200,12 @@ export function NewInspectionDialog({ open, onOpenChange, onSave }: NewInspectio
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(newOpen) => {
+      if (!newOpen) {
+        stopCamera()
+      }
+      onOpenChange(newOpen)
+    }}>
       <DialogContent className="sm:max-w-[425px] bg-white max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>New Inspection</DialogTitle>
@@ -221,15 +243,16 @@ export function NewInspectionDialog({ open, onOpenChange, onSave }: NewInspectio
                   type="button"
                   variant="outline"
                   className="flex-1"
-                  onClick={startCamera}
+                  onClick={toggleCamera}
                 >
-                  Start Camera
+                  {isCameraActive ? "Stop Camera" : "Start Camera"}
                 </Button>
                 <Button
                   type="button"
                   variant="outline"
                   className="flex-1"
                   onClick={captureImage}
+                  disabled={!isCameraActive}
                 >
                   Capture
                 </Button>
