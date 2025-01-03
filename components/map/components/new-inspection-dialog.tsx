@@ -1,83 +1,72 @@
 'use client'
 
-import { useState, useRef } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../../../components/ui/dialog"
-import { Button } from '../../../components/ui/button'
-import { Input } from '../../../components/ui/input'
+import { Button } from "../../../components/ui/button"
+import { Input } from "../../../components/ui/input"
 import { Textarea } from "../../../components/ui/textarea"
 import { Label } from "../../../components/ui/label"
-import { Camera, Loader2, X } from 'lucide-react'
+import { useState, useRef, useEffect } from "react"
+import { Camera, X, Loader2 } from 'lucide-react'
+import type { Inspection } from "../../../lib/types"
+import { cn } from "../../../lib/utils"
+import { ScrollArea } from "../../../components/ui/scroll-area"
 import { useNotificationStore } from '../../../lib/stores/notification-store'
-import { getCurrentLocation, getAddressFromCoordinates } from '../../../lib/services/geolocation'
-import { Inspection } from '../../../lib/types'
+import mapboxgl from 'mapbox-gl';
 
 interface NewInspectionDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onSave: (inspection: Omit<Inspection, "id">, images: File[]) => Promise<void>;
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onSave: (inspection: Omit<Inspection, "id">, images: File[]) => Promise<void>
 }
 
 export function NewInspectionDialog({ open, onOpenChange, onSave }: NewInspectionDialogProps) {
-  const isPWA = () => {
-    return window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true;
-  };
-  const { addNotification } = useNotificationStore()
+  const [images, setImages] = useState<File[]>([])
   const [title, setTitle] = useState('')
   const [details, setDetails] = useState('')
-  const [images, setImages] = useState<string[]>([])
-  const [loading, setLoading] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
-  const streamRef = useRef<MediaStream | null>(null)
+  const [isCameraActive, setIsCameraActive] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [useManualLocation, setUseManualLocation] = useState(false)
+  const [manualLocation, setManualLocation] = useState('')
+  const { addNotification } = useNotificationStore()
 
-  const startCamera = async () => {
+  const getCurrentLocation = () => new Promise<{ latitude: number; longitude: number }>((resolve, reject) => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude }),
+        (error) => reject(error)
+      )
+    } else {
+      reject(new Error('Geolocation is not supported by this browser.'))
+    }
+  })
+
+  const getAddressFromCoordinates = async (latitude: number, longitude: number): Promise<string> => {
     try {
-      const constraints = {
-        video: { facingMode: 'environment' }
-      };
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        streamRef.current = stream;
-      }
+      const response = await fetch(
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${longitude},${latitude}.json?access_token=${mapboxgl.accessToken}`
+      )
+      const data = await response.json()
+      return data.features[0]?.place_name || `${latitude}, ${longitude}`
     } catch (error) {
-      console.error('Camera error:', error);
-      addNotification({
-        type: 'error',
-        title: 'Camera Error',
-        message: 'Could not access camera. Please check permissions and ensure no other app is using the camera.',
-      });
+      console.error('Error getting address:', error)
+      return `${latitude}, ${longitude}`
     }
-  };
+  }
 
-  const captureImage = () => {
-    if (!videoRef.current) return
-
-    const canvas = document.createElement('canvas')
-    canvas.width = videoRef.current.videoWidth
-    canvas.height = videoRef.current.videoHeight
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
-    ctx.drawImage(videoRef.current, 0, 0)
-    canvas.toBlob((blob) => {
-      if (!blob) return
-      const reader = new FileReader()
-      reader.onloadend = () => {
-        const base64String = reader.result as string
-        setImages(prev => [...prev, base64String.split(',')[1]])
+  useEffect(() => {
+    if (open) {
+      if (navigator.permissions && navigator.permissions.query) {
+        navigator.permissions.query({ name: 'geolocation' }).then(result => {
+          if (result.state === 'prompt') {
+            navigator.geolocation.getCurrentPosition(() => {}, () => {}, { enableHighAccuracy: true })
+          }
+        })
       }
-      reader.readAsDataURL(blob)
-    }, 'image/jpeg', 0.8)
-  }
-
-  const stopCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop())
-      streamRef.current = null
     }
-  }
+  }, [open])
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!title || images.length === 0) {
       addNotification({
@@ -90,21 +79,38 @@ export function NewInspectionDialog({ open, onOpenChange, onSave }: NewInspectio
 
     setLoading(true)
     try {
-      let latitude, longitude, address;
-      try {
-        const location = await getCurrentLocation();
-        latitude = location.latitude;
-        longitude = location.longitude;
-        address = await getAddressFromCoordinates(latitude, longitude);
-      } catch (locationError) {
-        console.error('Geolocation error:', locationError);
-        addNotification({
-          type: 'error',
-          title: 'Location Error',
-          message: 'Failed to get current location. Please check your device settings and try again.',
-        });
-        setLoading(false);
-        return;
+      let latitude, longitude, address
+
+      if (useManualLocation) {
+        if (!manualLocation) {
+          addNotification({
+            type: 'error',
+            title: 'Location Error',
+            message: 'Please enter a location manually.',
+          })
+          setLoading(false)
+          return
+        }
+        address = manualLocation
+        latitude = 0
+        longitude = 0
+      } else {
+        try {
+          const location = await getCurrentLocation()
+          latitude = location.latitude
+          longitude = location.longitude
+          address = await getAddressFromCoordinates(latitude, longitude)
+        } catch (locationError) {
+          console.error('Geolocation error:', locationError)
+          addNotification({
+            type: 'error',
+            title: 'Location Error',
+            message: 'Failed to get current location. Please enter location manually.',
+          })
+          setUseManualLocation(true)
+          setLoading(false)
+          return
+        }
       }
 
       const inspection: Omit<Inspection, "id"> = {
@@ -122,52 +128,22 @@ export function NewInspectionDialog({ open, onOpenChange, onSave }: NewInspectio
         },
         communityBoard: '211',
         details: details || `LOCATION: ${address}\nINSPECTION DATE: ${new Date().toLocaleString()}`,
-        images: images,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         synced: false,
       }
 
-      const imageFiles = images.map((base64, index) => {
-        const byteString = atob(base64);
-        const ab = new ArrayBuffer(byteString.length);
-        const ia = new Uint8Array(ab);
-        for (let i = 0; i < byteString.length; i++) {
-          ia[i] = byteString.charCodeAt(i);
-        }
-        const blob = new Blob([ab], { type: 'image/jpeg' });
-        return new File([blob], `image-${index}.jpg`, { type: 'image/jpeg' });
+      await onSave(inspection, images)
+      addNotification({
+        type: 'success',
+        title: 'Inspection Created',
+        message: 'New inspection has been created successfully.',
       });
-
-      try {
-        await onSave(inspection, imageFiles);
-        addNotification({
-          type: 'success',
-          title: 'Inspection Created',
-          message: 'New inspection has been created successfully.',
-        });
-      } catch (saveError) {
-        console.error('Error saving inspection:', saveError);
-        if (isPWA()) {
-          try {
-            localStorage.setItem(`pendingInspection_${Date.now()}`, JSON.stringify({ inspection, images }));
-            addNotification({
-              type: 'warning',
-              title: 'Offline Mode',
-              message: 'Inspection saved locally. It will be uploaded when online.',
-            });
-          } catch (localSaveError) {
-            console.error('Error saving locally:', localSaveError);
-            throw new Error('Failed to save inspection online and offline.');
-          }
-        } else {
-          throw saveError;
-        }
-      }
 
       setTitle('')
       setDetails('')
       setImages([])
+      setManualLocation('')
       onOpenChange(false)
     } catch (error) {
       console.error('Error creating inspection:', error)
@@ -182,98 +158,198 @@ export function NewInspectionDialog({ open, onOpenChange, onSave }: NewInspectio
     }
   }
 
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: 'environment' } 
+      })
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+        setIsCameraActive(true)
+      }
+    } catch (err) {
+      console.error("Error accessing camera:", err)
+    }
+  }
+
+  const captureImage = () => {
+    if (videoRef.current) {
+      const canvas = document.createElement('canvas')
+      canvas.width = videoRef.current.videoWidth
+      canvas.height = videoRef.current.videoHeight
+      const ctx = canvas.getContext('2d')
+      if (ctx) {
+        ctx.drawImage(videoRef.current, 0, 0)
+        canvas.toBlob((blob) => {
+          if (blob) {
+            const file = new File([blob], `image_${Date.now()}.jpg`, { type: 'image/jpeg' })
+            setImages(prev => [...prev, file])
+          }
+        }, 'image/jpeg')
+      }
+    }
+  }
+
+  const stopCamera = () => {
+    if (videoRef.current?.srcObject) {
+      const tracks = (videoRef.current.srcObject as MediaStream).getTracks()
+      tracks.forEach(track => track.stop())
+      setIsCameraActive(false)
+    }
+  }
+
+  <style jsx global>{`
+    .DialogContent {
+      scrollbar-width: thin;
+      scrollbar-color: #888 #f1f1f1;
+    }
+    .DialogContent::-webkit-scrollbar {
+      width: 6px;
+    }
+    .DialogContent::-webkit-scrollbar-track {
+      background: #f1f1f1;
+    }
+    .DialogContent::-webkit-scrollbar-thumb {
+      background: #888;
+      border-radius: 3px;
+    }
+    .DialogContent::-webkit-scrollbar-thumb:hover {
+      background: #555;
+    }
+  `}</style>
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px] bg-white">
-        <DialogHeader>
-          <DialogTitle>New Inspection</DialogTitle>
+    <Dialog 
+      open={open} 
+      onOpenChange={(newOpen) => {
+        if (!newOpen) stopCamera()
+        onOpenChange(newOpen)
+      }}
+    >
+      <DialogContent className="sm:max-w-[425px] bg-white max-h-[80vh] overflow-y-auto">
+        <DialogHeader className="flex-shrink-0">
+          <div className="flex items-center justify-between">
+            <DialogTitle className="text-xl font-semibold">New Inspection</DialogTitle>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={() => {
+                stopCamera()
+                onOpenChange(false)
+              }}
+              className="h-8 w-8 rounded-full hover:bg-gray-100"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <Label htmlFor="title">Title</Label>
-            <Input
-              id="title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Enter inspection title"
-            />
-          </div>
-          <div>
-            <Label htmlFor="details">Details</Label>
-            <Textarea
-              id="details"
-              value={details}
-              onChange={(e) => setDetails(e.target.value)}
-              placeholder="Enter inspection details"
-            />
-          </div>
-          <div>
-            <Label>Camera</Label>
+        
+        <ScrollArea className="flex-1 px-6">
+          <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-4">
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                className="w-full aspect-video bg-black rounded-lg"
-              />
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="flex-1"
-                  onClick={startCamera}
-                >
-                  Start Camera
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="flex-1"
-                  onClick={captureImage}
-                >
-                  Capture
-                </Button>
+              <div>
+                <Label htmlFor="title" className="text-gray-700">Title</Label>
+                <Input
+                  id="title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Enter inspection title"
+                  className="mt-1.5"
+                  required
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="details" className="text-gray-700">Details (Optional)</Label>
+                <Textarea
+                  id="details"
+                  value={details}
+                  onChange={(e) => setDetails(e.target.value)}
+                  placeholder="Enter inspection details"
+                  className="mt-1.5 min-h-[100px]"
+                />
+              </div>
+
+              <div>
+                <Label className="text-gray-700">Images</Label>
+                <div className="mt-1.5">
+                  {isCameraActive ? (
+                    <div className="space-y-2">
+                      <video 
+                        ref={videoRef} 
+                        autoPlay 
+                        playsInline 
+                        className="w-full h-48 object-cover rounded-lg bg-black"
+                      />
+                      <div className="flex gap-2">
+                        <Button type="button" onClick={captureImage}>
+                          Capture
+                        </Button>
+                        <Button type="button" variant="outline" onClick={stopCamera}>
+                          Stop Camera
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={startCamera}
+                      className="w-full justify-center py-6 border-dashed"
+                    >
+                      <Camera className="h-5 w-5 mr-2" />
+                      Start Camera
+                    </Button>
+                  )}
+                </div>
+                
+                {images.length > 0 && (
+                  <div className="grid grid-cols-2 gap-2 mt-3">
+                    {images.map((file, index) => (
+                      <div key={index} className="relative">
+                        <img
+                          src={URL.createObjectURL(file)}
+                          alt={`Captured ${index + 1}`}
+                          className="w-full h-24 object-cover rounded-lg border border-gray-200"
+                        />
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="icon"
+                          className="absolute top-1 right-1 h-6 w-6"
+                          onClick={() => setImages(prev => prev.filter((_, i) => i !== index))}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
-          </div>
-          <div>
-            <Label>Captured Images</Label>
-            <div className="grid grid-cols-2 gap-2 mt-2 max-h-[200px] overflow-y-auto">
-              {images.map((image, index) => (
-                <div key={index} className="relative aspect-square">
-                  <img
-                    src={`data:image/jpeg;base64,${image}`}
-                    alt={`Captured image ${index + 1}`}
-                    className="w-full h-full object-cover rounded-lg"
-                  />
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="sm"
-                    className="absolute top-2 right-2"
-                    onClick={() => {
-                      setImages(prev => prev.filter((_, i) => i !== index))
-                    }}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
+
+            <div className="flex gap-3 sticky bottom-0 bg-white py-4">
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => {
+                  setTitle('')
+                  setDetails('')
+                  setImages([])
+                  stopCamera()
+                  onOpenChange(false)
+                }}
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+              <Button type="submit" className="flex-1 bg-purple-600 hover:bg-purple-700">
+                {loading ? <Loader2 className="animate-spin h-5 w-5 mr-2"/> : null} Save Inspection
+              </Button>
             </div>
-          </div>
-          <Button className="w-full" type="submit" disabled={loading}>
-            {loading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Creating...
-              </>
-            ) : (
-              'Create Inspection'
-            )}
-          </Button>
-        </form>
+          </form>
+        </ScrollArea>
       </DialogContent>
     </Dialog>
   )
 }
-
