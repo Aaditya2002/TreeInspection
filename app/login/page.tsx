@@ -13,27 +13,28 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const router = useRouter()
   const { toast } = useToast()
-  const { instance } = useMsal()
+  const { instance, accounts } = useMsal()
 
   useEffect(() => {
     // Check if user is already logged in
-    const isLoggedIn = localStorage.getItem("isLoggedIn")
-    if (isLoggedIn === "true") {
+    const isLoggedIn = localStorage.getItem("isLoggedIn") === "true"
+    if (isLoggedIn && accounts.length > 0) {
       router.push("/")
     }
-  }, [router])
+  }, [router, accounts])
 
   const handleLogin = async () => {
     setLoading(true)
 
     try {
       const response = await instance.loginPopup(loginRequest)
-      if (response) {
+      if (response?.account) {
         localStorage.setItem("isLoggedIn", "true")
         router.push("/")
       }
     } catch (error) {
       console.error(error)
+      localStorage.removeItem("isLoggedIn")
       toast({
         title: "Login Failed",
         description: "An error occurred during login. Please try again.",

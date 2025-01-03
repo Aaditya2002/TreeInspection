@@ -1,20 +1,31 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useMsal } from "@azure/msal-react"
 import React from 'react'
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const router = useRouter()
-  const { instance, accounts } = useMsal()
+  const { instance } = useMsal()
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
 
   useEffect(() => {
-    if (accounts.length === 0) {
-      router.push('/login')
+    const checkAuth = async () => {
+      const account = instance.getActiveAccount()
+      if (!account) {
+        router.push('/login')
+      } else {
+        setIsAuthenticated(true)
+      }
     }
-  }, [router, accounts])
+
+    checkAuth()
+  }, [router, instance])
+
+  if (!isAuthenticated) {
+    return null // or a loading spinner
+  }
 
   return <>{children}</>
 }
-
