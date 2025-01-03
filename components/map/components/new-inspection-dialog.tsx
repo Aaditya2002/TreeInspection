@@ -22,6 +22,7 @@ export function NewInspectionDialog({ open, onOpenChange, onSave }: NewInspectio
   const isPWA = () => {
     return window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true;
   };
+  
   const { addNotification } = useNotificationStore()
   const [title, setTitle] = useState('')
   const [details, setDetails] = useState('')
@@ -203,17 +204,21 @@ export function NewInspectionDialog({ open, onOpenChange, onSave }: NewInspectio
 
   return (
     <>
-      <Dialog open={open} onOpenChange={(newOpen) => {
-        if (!newOpen) {
-          stopCamera()
-        }
-        onOpenChange(newOpen)
-      }}>
-        <DialogContent className="sm:max-w-[425px] bg-white max-h-[80vh] overflow-y-auto !p-0">
+      <div className={`fixed inset-0 bg-background/80 backdrop-blur-sm ${open ? 'z-50' : 'z-0 hidden'}`} />
+      <Dialog 
+        open={open} 
+        onOpenChange={(newOpen) => {
+          if (!newOpen) {
+            stopCamera()
+          }
+          onOpenChange(newOpen)
+        }}
+      >
+        <DialogContent className="fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-0 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg md:w-full">
           <DialogHeader className="p-4 pb-2">
             <DialogTitle>New Inspection</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4 p-4 pt-2">
+          <form onSubmit={handleSubmit} className="space-y-4 p-4 pt-2 max-h-[80vh] overflow-y-auto">
             <div>
               <Label htmlFor="title">Title</Label>
               <Input
@@ -306,12 +311,16 @@ export function NewInspectionDialog({ open, onOpenChange, onSave }: NewInspectio
         </DialogContent>
       </Dialog>
 
-      <ImageViewer
-        images={images}
-        initialIndex={selectedImageIndex || 0}
-        open={selectedImageIndex !== null}
-        onOpenChange={(open) => !open && setSelectedImageIndex(null)}
-      />
+      {selectedImageIndex !== null && (
+        <div className="z-[60] relative">
+          <ImageViewer
+            images={images}
+            initialIndex={selectedImageIndex || 0}
+            open={selectedImageIndex !== null}
+            onOpenChange={(open) => !open && setSelectedImageIndex(null)}
+          />
+        </div>
+      )}
     </>
   )
 }
