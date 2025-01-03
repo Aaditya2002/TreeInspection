@@ -33,12 +33,12 @@ export default function LoginPage() {
       const response = await instance.loginPopup(loginRequest)
       if (response?.account) {
         localStorage.setItem("isLoggedIn", "true")
-        // Force a re-render to update the MSAL context
         await instance.setActiveAccount(response.account)
+        console.log("Login successful, redirecting to home page")
         router.push("/")
       }
     } catch (error) {
-      console.error(error)
+      console.error("Login error:", error)
       localStorage.removeItem("isLoggedIn")
       toast({
         title: "Login Failed",
