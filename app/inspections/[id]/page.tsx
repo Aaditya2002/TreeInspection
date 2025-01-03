@@ -8,6 +8,7 @@ import { Badge } from '../../../components/ui/badge'
 import { getInspection, updateInspectionStatus, initDB } from '../../../lib/db'
 import { Inspection } from '../../../lib/types'
 import { cn } from '../../../lib/utils'
+import { ImageViewer } from '../../../components/ui/image-viewer'
 import {
   Select,
   SelectContent,
@@ -16,13 +17,15 @@ import {
   SelectValue,
 } from "../../../components/ui/select"
 import { useToast } from "../../../components/ui/use-toast"
-import Image from 'next/image'
+import { getAddressFromCoordinates } from '../../../lib/services/geolocation'
 
 export default function InspectionDetailsPage() {
   const params = useParams()
   const router = useRouter()
   const [inspection, setInspection] = useState<Inspection | null>(null)
   const [loading, setLoading] = useState(true)
+  const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null)
+  const [currentAddress, setCurrentAddress] = useState<string>('')
   const { toast } = useToast()
 
   useEffect(() => {
@@ -31,6 +34,13 @@ export default function InspectionDetailsPage() {
         await initDB()
         const data = await getInspection(params.id as string)
         setInspection(data)
+        if (data) {
+          const address = await getAddressFromCoordinates(
+            data.location.latitude,
+            data.location.longitude
+          )
+          setCurrentAddress(address)
+        }
       } catch (error) {
         console.error('Error loading inspection:', error)
         toast({
@@ -114,106 +124,121 @@ export default function InspectionDetailsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 pb-16 md:pb-0">
-      <header className="sticky top-0 z-10 bg-white px-4 py-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="mb-2"
-          onClick={() => router.back()}
-        >
-          <ChevronLeft className="mr-1 h-4 w-4" />
-          Back
-        </Button>
-      </header>
-
-      <div className="px-4 pb-4">
-        <div className="mb-6">
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold">Complaint #{inspection.id}</h1>
-            <Badge variant="secondary">{inspection.status}</Badge>
-          </div>
-          <p className="mt-1 text-gray-600">{inspection.title}</p>
-        </div>
-
-        <div className="space-y-6 rounded-lg bg-white p-4">
-          <InfoItem
-            icon={MapPin}
-            label="Location"
-            value={
-              <>
-                {inspection.location.address}
-                <div className="text-sm text-gray-500">
-                  Lat: {inspection.location.latitude.toFixed(6)}, Long: {inspection.location.longitude.toFixed(6)}
-                </div>
-              </>
-            }
-          />
-
-          <InfoItem
-            icon={Calendar}
-            label="Scheduled Date"
-            value={new Date(inspection.scheduledDate).toLocaleString()}
-          />
-
-          <InfoItem
-            icon={User}
-            label="Inspector"
-            value={`${inspection.inspector.name} (ID: ${inspection.inspector.id})`}
-          />
-
-          <InfoItem
-            icon={Building2}
-            label="Community Board"
-            value={inspection.communityBoard}
-          />
-
-          <InfoItem
-            icon={FileText}
-            label="Details"
-            value={inspection.details}
-            className="whitespace-pre-line"
-          />
-          {inspection.images && inspection.images.length > 0 && (
-            <div className="mt-6">
-              <h3 className="font-medium text-gray-900 mb-2">Images</h3>
-              <div className="grid grid-cols-2 gap-2 max-h-[300px] overflow-y-auto">
-                {inspection.images.map((img, index) => (
-                  <Base64Image
-                    key={index}
-                    src={img}
-                    alt={`Inspection image ${index + 1}`}
-                    className="w-full h-40 object-cover rounded-lg"
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="mt-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <span className="font-medium">Update Status:</span>
-            <Select
-              value={inspection.status}
-              onValueChange={handleStatusChange}
-            >
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Select status" />
-              </SelectTrigger>
-              <SelectContent className='customUpdateStatus'>
-                <SelectItem value="Pending">Pending</SelectItem>
-                <SelectItem value="In-Progress">In Progress</SelectItem>
-                <SelectItem value="Completed">Completed</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <Button className="w-full" variant="outline">
-            Add Note
+    <>
+      <main className="min-h-screen bg-gray-50 pb-16 md:pb-0">
+        <header className="sticky top-0 z-10 bg-white px-4 py-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="mb-2"
+            onClick={() => router.back()}
+          >
+            <ChevronLeft className="mr-1 h-4 w-4" />
+            Back
           </Button>
+        </header>
+
+        <div className="px-4 pb-4">
+          <div className="mb-6">
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold">Complaint #{inspection.id}</h1>
+              <Badge variant="secondary">{inspection.status}</Badge>
+            </div>
+            <p className="mt-1 text-gray-600">{inspection.title}</p>
+          </div>
+
+          <div className="space-y-6 rounded-lg bg-white p-4">
+            <InfoItem
+              icon={MapPin}
+              label="Location"
+              value={
+                <>
+                  {currentAddress}
+                  <div className="text-sm text-gray-500 mt-1">
+                    Lat: {inspection.location.latitude.toFixed(6)}, Long: {inspection.location.longitude.toFixed(6)}
+                  </div>
+                </>
+              }
+            />
+
+            <InfoItem
+              icon={Calendar}
+              label="Scheduled Date"
+              value={new Date(inspection.scheduledDate).toLocaleString()}
+            />
+
+            <InfoItem
+              icon={User}
+              label="Inspector"
+              value={`${inspection.inspector.name} (ID: ${inspection.inspector.id})`}
+            />
+
+            <InfoItem
+              icon={Building2}
+              label="Community Board"
+              value={inspection.communityBoard}
+            />
+
+            <InfoItem
+              icon={FileText}
+              label="Details"
+              value={inspection.details}
+              className="whitespace-pre-line"
+            />
+
+            {inspection.images && inspection.images.length > 0 && (
+              <div className="mt-6">
+                <h3 className="font-medium text-gray-900 mb-2">Images</h3>
+                <div className="grid grid-cols-2 gap-2 max-h-[300px] overflow-y-auto">
+                  {inspection.images.map((img, index) => (
+                    <div 
+                      key={index}
+                      className="relative cursor-pointer"
+                      onClick={() => setSelectedImageIndex(index)}
+                    >
+                      <img
+                        src={`data:image/jpeg;base64,${img}`}
+                        alt={`Inspection image ${index + 1}`}
+                        className="w-full h-40 object-cover rounded-lg hover:opacity-90 transition-opacity"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="mt-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="font-medium">Update Status:</span>
+              <Select
+                value={inspection.status}
+                onValueChange={handleStatusChange}
+              >
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent className='customUpdateStatus'>
+                  <SelectItem value="Pending">Pending</SelectItem>
+                  <SelectItem value="In-Progress">In Progress</SelectItem>
+                  <SelectItem value="Completed">Completed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button className="w-full" variant="outline">
+              Add Note
+            </Button>
+          </div>
         </div>
-      </div>
-    </main>
+      </main>
+
+      <ImageViewer
+        images={inspection.images || []}
+        initialIndex={selectedImageIndex || 0}
+        open={selectedImageIndex !== null}
+        onOpenChange={(open) => !open && setSelectedImageIndex(null)}
+      />
+    </>
   )
 }
 
@@ -236,16 +261,6 @@ function InfoItem({
         <div className={cn("mt-1 text-gray-600", className)}>{value}</div>
       </div>
     </div>
-  )
-}
-
-function Base64Image({ src, alt, className }: { src: string; alt: string; className?: string }) {
-  return (
-    <img 
-      src={`data:image/jpeg;base64,${src}`} 
-      alt={alt} 
-      className={className}
-    />
   )
 }
 
