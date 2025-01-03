@@ -1,16 +1,15 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../../../components/ui/dialog"
 import { Button } from '../../../components/ui/button'
 import { Input } from '../../../components/ui/input'
 import { Textarea } from "../../../components/ui/textarea"
 import { Label } from "../../../components/ui/label"
-import { Camera, Loader2, X, MapPin } from 'lucide-react'
+import { Camera, Loader2, X } from 'lucide-react'
 import { useNotificationStore } from '../../../lib/stores/notification-store'
 import { getCurrentLocation, getAddressFromCoordinates } from '../../../lib/services/geolocation'
 import { Inspection } from '../../../lib/types'
-import { useToast } from '../../../components/ui/use-toast'
 
 interface NewInspectionDialogProps {
   open: boolean;
@@ -19,67 +18,36 @@ interface NewInspectionDialogProps {
 }
 
 export function NewInspectionDialog({ open, onOpenChange, onSave }: NewInspectionDialogProps) {
+  const isPWA = () => {
+    return window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true;
+  };
   const { addNotification } = useNotificationStore()
   const [title, setTitle] = useState('')
   const [details, setDetails] = useState('')
   const [images, setImages] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
-  const [manualLocation, setManualLocation] = useState('')
-  const [useManualLocation, setUseManualLocation] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
-  const { toast } = useToast()
-
-  useEffect(() => {
-    if (open) {
-      checkLocationPermission();
-    }
-  }, [open]);
-
-  const checkLocationPermission = async () => {
-    if ('geolocation' in navigator) {
-      try {
-        const result = await navigator.permissions.query({ name: 'geolocation' });
-        if (result.state === 'granted') {
-          setUseManualLocation(false);
-        } else {
-          setUseManualLocation(true);
-          toast({
-            title: "Location Unavailable",
-            description: "Please enable location services in the settings to use automatic location.",
-          });
-        }
-      } catch (error) {
-        console.error('Error checking location permission:', error);
-        setUseManualLocation(true);
-      }
-    } else {
-      setUseManualLocation(true);
-      toast({
-        title: "Location Unavailable",
-        description: "Geolocation is not supported by your browser. Please enter the location manually.",
-      });
-    }
-  };
 
   const startCamera = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
+      const constraints = {
         video: { facingMode: 'environment' }
-      })
+      };
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       if (videoRef.current) {
-        videoRef.current.srcObject = stream
-        streamRef.current = stream
+        videoRef.current.srcObject = stream;
+        streamRef.current = stream;
       }
     } catch (error) {
-      console.error('Camera error:', error)
+      console.error('Camera error:', error);
       addNotification({
         type: 'error',
         title: 'Camera Error',
-        message: 'Could not access camera. Please check permissions.',
-      })
+        message: 'Could not access camera. Please check permissions and ensure no other app is using the camera.',
+      });
     }
-  }
+  };
 
   const captureImage = () => {
     if (!videoRef.current) return
@@ -123,39 +91,20 @@ export function NewInspectionDialog({ open, onOpenChange, onSave }: NewInspectio
     setLoading(true)
     try {
       let latitude, longitude, address;
-
-      if (useManualLocation) {
-        if (!manualLocation) {
-          addNotification({
-            type: 'error',
-            title: 'Location Error',
-            message: 'Please enter a location manually.',
-          });
-          setLoading(false);
-          return;
-        }
-        address = manualLocation;
-        // You might want to use a geocoding service here to get lat/long from the address
-        // For now, we'll use placeholder values
-        latitude = 0;
-        longitude = 0;
-      } else {
-        try {
-          const location = await getCurrentLocation();
-          latitude = location.latitude;
-          longitude = location.longitude;
-          address = await getAddressFromCoordinates(latitude, longitude);
-        } catch (locationError) {
-          console.error('Geolocation error:', locationError);
-          addNotification({
-            type: 'error',
-            title: 'Location Error',
-            message: 'Failed to get current location. Please enter location manually.',
-          });
-          setUseManualLocation(true);
-          setLoading(false);
-          return;
-        }
+      try {
+        const location = await getCurrentLocation();
+        latitude = location.latitude;
+        longitude = location.longitude;
+        address = await getAddressFromCoordinates(latitude, longitude);
+      } catch (locationError) {
+        console.error('Geolocation error:', locationError);
+        addNotification({
+          type: 'error',
+          title: 'Location Error',
+          message: 'Failed to get current location. Please check your device settings and try again.',
+        });
+        setLoading(false);
+        return;
       }
 
       const inspection: Omit<Inspection, "id"> = {
@@ -199,26 +148,26 @@ export function NewInspectionDialog({ open, onOpenChange, onSave }: NewInspectio
         });
       } catch (saveError) {
         console.error('Error saving inspection:', saveError);
-        // Store locally if save fails (offline support)
-        try {
-          const storedInspections = JSON.parse(localStorage.getItem('pendingInspections') || '[]');
-          storedInspections.push({ inspection, images });
-          localStorage.setItem('pendingInspections', JSON.stringify(storedInspections));
-          addNotification({
-            type: 'warning',
-            title: 'Offline Mode',
-            message: 'Inspection saved locally. It will be uploaded when online.',
-          });
-        } catch (localSaveError) {
-          console.error('Error saving locally:', localSaveError);
-          throw new Error('Failed to save inspection online and offline.');
+        if (isPWA()) {
+          try {
+            localStorage.setItem(`pendingInspection_${Date.now()}`, JSON.stringify({ inspection, images }));
+            addNotification({
+              type: 'warning',
+              title: 'Offline Mode',
+              message: 'Inspection saved locally. It will be uploaded when online.',
+            });
+          } catch (localSaveError) {
+            console.error('Error saving locally:', localSaveError);
+            throw new Error('Failed to save inspection online and offline.');
+          }
+        } else {
+          throw saveError;
         }
       }
 
       setTitle('')
       setDetails('')
       setImages([])
-      setManualLocation('')
       onOpenChange(false)
     } catch (error) {
       console.error('Error creating inspection:', error)
@@ -258,17 +207,6 @@ export function NewInspectionDialog({ open, onOpenChange, onSave }: NewInspectio
               placeholder="Enter inspection details"
             />
           </div>
-          {useManualLocation && (
-            <div>
-              <Label htmlFor="manualLocation">Location</Label>
-              <Input
-                id="manualLocation"
-                value={manualLocation}
-                onChange={(e) => setManualLocation(e.target.value)}
-                placeholder="Enter location manually"
-              />
-            </div>
-          )}
           <div>
             <Label>Camera</Label>
             <div className="space-y-4">
